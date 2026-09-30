@@ -1,0 +1,14 @@
+{
+  "billets": [
+    {
+      "id": 1790734929130,
+      "code": "CNT-9LLSUW",
+      "type": "s",
+      "ligne": "L2",
+      "operateur": "Airtel Money",
+      "nom": "Ticket étudiant L2",
+      "validite": "ce soir 23:59"
+    }
+  ],
+  "signalements": []
+}

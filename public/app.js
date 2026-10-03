@@ -1,893 +1,841 @@
-var API = "";
-function apiGet(p) {
-  return fetch(API + p).then(function (r) {
-    return r.json();
+const navTrack = document.getElementById("navTrack");
+const navIndicator = document.getElementById("navIndicator");
+
+function moveIndicator(el) {
+  const r = el.getBoundingClientRect();
+  const tr = navTrack.getBoundingClientRect();
+  navIndicator.style.width = r.width - 8 + "px";
+  navIndicator.style.left = r.left - tr.left + 4 + "px";
+}
+
+document.querySelectorAll(".nav-item").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document
+      .querySelectorAll(".nav-item")
+      .forEach((i) => i.classList.remove("active"));
+    btn.classList.add("active");
+    moveIndicator(btn);
+  });
+});
+
+window.addEventListener("load", () => {
+  moveIndicator(document.querySelector(".nav-item.active"));
+});
+const pages = {
+  home: `
+    <div class="bandeau-demo">Mode Démo</div>
+    <h1>Bonjour</h1>
+    <div class="carte">
+      <h2>Où allez-vous ?</h2>
+      <select class="champ" id="homeDepart"></select>
+      <select class="champ" id="homeArrivee"></select>
+      <p class="erreur" id="homeErreur"></p>
+      <button class="bouton" id="homeRechercher" type="button">Rechercher</button>
+    </div>
+    <h2>Carte du réseau</h2>
+    <div id="carte-ville" class="carte-ville"></div>
+    <h2>Lignes favorites</h2>
+    <div id="homeFavoris"></div>
+  `,
+  trajet: "<h1>Trajet</h1>",
+  reseau: `
+    <h1>Réseau</h1>
+    <div id="legendeReseau" class="legende"></div>
+    <div id="carte-reseau" class="carte-reseau"></div>
+  `,
+  lignes: `
+    <h1>Lignes</h1>
+    <div id="listeLignes"></div>
+  `,
+  billets: `
+    <h1>Billets</h1>
+    <button class="bouton plein" id="btnAcheter" type="button">Acheter un billet</button>
+    <div class="onglets">
+      <button class="onglet actif" data-f="actifs" type="button">Actifs</button>
+      <button class="onglet" data-f="historique" type="button">Historique</button>
+      <button class="onglet" data-f="tous" type="button">Tous</button>
+    </div>
+    <div id="listeBillets"></div>
+  `,
+};
+let carte = null;
+
+function afficherPage(nom) {
+  if (carte) {
+    carte.remove();
+    carte = null;
+  }
+  document.getElementById("app").innerHTML = pages[nom];
+  if (nom === "home") initCarte();
+  if (nom === "home") initAccueil();
+  if (nom === "billets") initBillets();
+  if (nom === "lignes") initLignes();
+  if (nom === "reseau") initReseau();
+}
+
+function initCarte() {
+  carte = L.map("carte-ville", { zoomControl: false }).setView(
+    [0.4162, 9.4673],
+    12,
+  );
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "©️ OpenStreetMap",
+  }).addTo(carte);
+
+  const arrets = [
+    { nom: "Aéroport Léon-Mba", pos: [0.4586, 9.4123] },
+    { nom: "Centre-ville", pos: [0.3925, 9.453] },
+    { nom: "Université Omar Bongo", pos: [0.429, 9.499] },
+  ];
+
+  arrets.forEach((a) => {
+    L.circleMarker(a.pos, {
+      radius: 9,
+      color: "#0b7d4b",
+      fillColor: "#0b7d4b",
+      fillOpacity: 1,
+    })
+      .addTo(carte)
+      .bindPopup(a.nom);
   });
 }
-function apiPost(p, body) {
-  return fetch(API + p, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  }).then(function (r) {
-    return r.json();
+const optionsBtn = document.getElementById("optionsBtn");
+const optionsMenu = document.getElementById("optionsMenu");
+
+optionsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  optionsMenu.classList.toggle("ouvert");
+});
+
+document.addEventListener("click", () =>
+  optionsMenu.classList.remove("ouvert"),
+);
+const utilisateur = { nom: "NGUIAMBAMBA Judaxe Kevin" };
+
+const mesBillets = [
+  {
+    id: "CNT-0001",
+    trajet: "Centre-ville → Aéroport",
+    ligne: "Ligne 1",
+    prix: "1 000 FCFA",
+    date: "02 oct. 2026",
+    statut: "actif",
+  },
+  {
+    id: "CNT-0002",
+    trajet: "Université → Centre-ville",
+    ligne: "Ligne 3",
+    prix: "500 FCFA",
+    date: "28 sept. 2026",
+    statut: "actif",
+  },
+  {
+    id: "CNT-0003",
+    trajet: "Akébé → Centre-ville",
+    ligne: "Ligne 2",
+    prix: "500 FCFA",
+    date: "20 sept. 2026",
+    statut: "expire",
+  },
+];
+
+function initBillets() {
+  document
+    .getElementById("btnAcheter")
+    .addEventListener("click", ouvrirRecherche);
+  afficherListe("actifs");
+  document.querySelectorAll(".onglet").forEach((o) => {
+    o.addEventListener("click", () => {
+      document
+        .querySelectorAll(".onglet")
+        .forEach((x) => x.classList.remove("actif"));
+      o.classList.add("actif");
+      afficherListe(o.dataset.f);
+    });
+  });
+  document.getElementById("listeBillets").addEventListener("click", (e) => {
+    const c = e.target.closest(".billet");
+    if (c) ouvrirBillet(c.dataset.id);
   });
 }
 
-var L = [
+function afficherListe(filtre) {
+  const liste = mesBillets.filter((b) =>
+    filtre === "tous"
+      ? true
+      : filtre === "actifs"
+        ? b.statut === "actif"
+        : b.statut !== "actif",
+  );
+  document.getElementById("listeBillets").innerHTML =
+    liste
+      .map(
+        (b) => `
+    <div class="carte billet" data-id="${b.id}">
+      <div class="ligne"><span>${b.trajet}</span><span class="statut ${b.statut === "actif" ? "fluide" : "expire"}">${b.statut === "actif" ? "Actif" : "Expiré"}</span></div>
+      <p class="gris">${b.ligne} · ${b.date} · ${b.prix}</p>
+    </div>
+  `,
+      )
+      .join("") || '<p class="gris">Aucun billet.</p>';
+}
+
+function ouvrirBillet(id) {
+  const b = mesBillets.find((x) => x.id === id);
+  const expire = b.statut !== "actif";
+  document.getElementById("app").innerHTML = `
+    <button class="retour" type="button" id="retourBillets">← Retour</button>
+    <div class="distributeur">
+      <div class="fente"><span class="voyant"></span></div>
+      <div class="sortie">
+        <div class="ticket-or ${expire ? "expire" : ""}">
+          <div class="ticket-haut">
+            <div class="ticket-marque">CNT</div>
+            <p class="ticket-label">Trajet</p>
+            <h2>${b.trajet}</h2>
+            <div class="ticket-infos">
+              <div><p class="ticket-label">Passager</p><p class="ticket-valeur">${nomUtilisateur()}</p></div>
+              <div><p class="ticket-label">Valable jusqu'au</p><p class="ticket-valeur">${b.date}</p></div>
+            </div>
+          </div>
+          <div class="coupure"></div>
+          <div class="ticket-bas">
+            <div id="qrBillet" class="qr-boite"></div>
+            <p class="ticket-label">${b.id} · ${b.ligne}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  new QRCode(document.getElementById("qrBillet"), {
+    text: b.id,
+    width: 180,
+    height: 180,
+  });
+  document
+    .getElementById("retourBillets")
+    .addEventListener("click", () => afficherPage("billets"));
+}
+const fcfa = (n) => n.toLocaleString("fr-FR") + " FCFA";
+
+const reseau = [
   {
-    id: "L1",
-    n: "Owendo – Akanda",
-    c: "#0b7d4b",
-    p: 500,
-    f: 12,
-    s: ["Owendo", "Nzeng-Ayong", "Mont-Bouët", "Glass", "Louis", "Akanda"],
+    nom: "Ligne 1",
+    arrets: ["Aéroport Léon-Mba", "Akébé", "Centre-ville"],
+    prix: 1000,
+    attente: 5,
+    statut: "fluide",
   },
   {
-    id: "L2",
-    n: "Aéroport – Université",
-    c: "#1d6fd8",
-    p: 400,
-    f: 15,
-    s: ["Aéroport", "Lalala", "Glass", "Mont-Bouët", "Université"],
+    nom: "Ligne 2",
+    arrets: ["Akébé", "Centre-ville", "Université Omar Bongo"],
+    prix: 500,
+    attente: 12,
+    statut: "perturbe",
   },
   {
-    id: "L3",
-    n: "PK8 – Centre-ville",
-    c: "#d97706",
-    p: 300,
-    f: 10,
-    s: ["PK8", "Louis", "Glass", "Mont-Bouët"],
+    nom: "Ligne 3",
+    arrets: ["Université Omar Bongo", "Centre-ville"],
+    prix: 500,
+    attente: 8,
+    statut: "fluide",
   },
 ];
-var POS = {
-  Owendo: [25, 190],
-  "Nzeng-Ayong": [150, 158],
-  "Mont-Bouët": [195, 118],
-  Glass: [235, 88],
-  Louis: [285, 58],
-  Akanda: [335, 30],
-  Aéroport: [35, 50],
-  Lalala: [120, 78],
-  Université: [130, 200],
-  PK8: [330, 190],
-};
-var ST = Object.keys(POS).sort(function (a, b) {
-  return a.localeCompare(b, "fr");
-});
-var S = {
-  fav: [],
-  v: "home",
-  from: "Owendo",
-  to: "Akanda",
-  go: 0,
-  tk: [],
-  buy: { ty: "u", ln: "L1", op: "Airtel Money", ph: "", st: 0 },
-  rp: [],
-  rf: { t: "Retard", l: "L1", c: "" },
-  stats: { totalBillets: 0, totalSignalements: 0, signalementsParLigne: {} },
-};
-var $ = function (i) {
-    return document.getElementById(i);
-  },
-  P2 = function (n) {
-    return ("0" + n).slice(-2);
-  },
-  fm = function (m) {
-    return P2(Math.floor(m / 60) % 24) + ":" + P2(m % 60);
-  };
-var LN = function (id) {
-    return L.filter(function (l) {
-      return l.id == id;
-    })[0];
-  },
-  lb = function (l) {
-    return (
-      '<span class="lb" style="background:' + l.c + '">' + l.id + "</span>"
-    );
-  };
-function opts(a, sel) {
-  return a
-    .map(function (x) {
-      var v = x.id || x,
-        t = x.id ? x.id + " · " + x.n : x;
-      return (
-        '<option value="' +
-        v +
-        '"' +
-        (v == sel ? " selected" : "") +
-        ">" +
-        t +
-        "</option>"
-      );
-    })
-    .join("");
+const listeArrets = [...new Set(reseau.flatMap((l) => l.arrets))];
+let achat = { depart: "", arrivee: "", ligne: null, operateur: "Airtel Money" };
+
+function optionsArrets(titre, valeur){
+  const opt = a => `<option ${a === valeur ? 'selected' : ''}>${a}</option>`;
+  return `<option value="">${titre}</option>` +
+    `<optgroup label="Libreville · urbain">${listeArrets.map(opt).join('')}</optgroup>` +
+    `<optgroup label="Interurbain">${villesInter().map(opt).join('')}</optgroup>`;
 }
-function toast(t) {
-  var e = $("toast");
-  e.textContent = t;
-  e.className = "on";
-  clearTimeout(toast.h);
-  toast.h = setTimeout(function () {
-    e.className = "";
-  }, 2400);
+
+function verifierTrajet(d, a) {
+  if (!d || !a) return "Choisissez un départ et une destination.";
+  if (d === a) return "Le départ et la destination doivent être différents.";
+  return "";
 }
-function nowm() {
-  var d = new Date();
-  return d.getHours() * 60 + d.getMinutes();
-}
-function deps(l, idx, n) {
-  var o = idx * 4,
-    r = [];
-  for (var t = 330 + o; t <= 1260 + o && r.length < n; t += l.f)
-    if (t >= nowm()) r.push(t);
-  return r;
-}
-function rel(t) {
-  var m = t - nowm();
-  return m <= 0 ? "À quai" : "Dans " + m + " min";
-}
-function routes(a, b) {
-  var out = [];
-  L.forEach(function (l) {
-    var ia = l.s.indexOf(a),
-      ib = l.s.indexOf(b);
-    if (ia < 0 || ib < 0 || ia == ib) return;
-    var dir = ib > ia ? 1 : -1,
-      n = Math.abs(ib - ia),
-      o = dir > 0 ? ia : l.s.length - 1 - ia,
-      mid = l.s.slice(Math.min(ia, ib), Math.max(ia, ib) + 1);
-    if (dir < 0) mid.reverse();
-    out.push({ l: l, n: n, d: deps(l, o, 3), mid: mid });
-  });
-  return out.sort(function (x, y) {
-    return x.n - y.n;
+
+function initAccueil() {
+  afficherFavoris();
+  document.getElementById("homeDepart").innerHTML = optionsArrets(
+    "Départ",
+    achat.depart,
+  );
+  document.getElementById("homeArrivee").innerHTML = optionsArrets(
+    "Destination",
+    achat.arrivee,
+  );
+  document.getElementById("homeRechercher").addEventListener("click", () => {
+    const d = document.getElementById("homeDepart").value;
+    const a = document.getElementById("homeArrivee").value;
+    const msg = verifierTrajet(d, a);
+    document.getElementById("homeErreur").textContent = msg;
+    if (!msg) afficherResultats(d, a);
   });
 }
-function qr(code) {
-  var h = 0,
-    i,
-    j,
-    g = [];
-  for (i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) >>> 0;
-  for (i = 0; i < 11; i++)
-    for (j = 0; j < 11; j++) {
-      h = (h * 1103515245 + 12345) >>> 0;
-      if (
-        (i < 3 && j < 3) ||
-        (i < 3 && j > 7) ||
-        (i > 7 && j < 3) ||
-        (h >> 16) % 2
-      )
-        g.push('<rect x="' + j + '" y="' + i + '" width="1" height="1"/>');
+
+function ouvrirRecherche() {
+  document.getElementById("app").innerHTML = `
+    <button class="retour" type="button" id="retourRecherche">← Retour</button>
+    <h1>Acheter un billet</h1>
+    <div class="carte">
+      <select class="champ" id="rechDepart">${optionsArrets("Départ", achat.depart)}</select>
+      <select class="champ" id="rechArrivee">${optionsArrets("Destination", achat.arrivee)}</select>
+    </div>
+    <p class="erreur" id="rechErreur"></p>
+    <button class="bouton plein" id="rechBtn" type="button">Rechercher</button>
+  `;
+  document
+    .getElementById("retourRecherche")
+    .addEventListener("click", () => afficherPage("billets"));
+  document.getElementById("rechBtn").addEventListener("click", () => {
+    const d = document.getElementById("rechDepart").value;
+    const a = document.getElementById("rechArrivee").value;
+    const msg = verifierTrajet(d, a);
+    document.getElementById("rechErreur").textContent = msg;
+    if (!msg) afficherResultats(d, a);
+  });
+}
+
+function afficherResultats(depart, arrivee) {
+  if (estInter(depart, arrivee)) { afficherResultatsInter(depart, arrivee); return; }
+  achat.depart = depart;
+  achat.arrivee = arrivee;
+  const trouvees = reseau.filter(
+    (l) => l.arrets.includes(depart) && l.arrets.includes(arrivee),
+  );
+  document.getElementById("app").innerHTML = `
+    <button class="retour" type="button" id="retourResultats">← Modifier</button>
+    <h1>${depart} → ${arrivee}</h1>
+    ${
+      trouvees.length
+        ? '<p class="gris">Choisissez une ligne</p>'
+        : '<div class="carte"><p>Aucune ligne directe entre ces deux arrêts.</p></div>'
     }
-  return (
-    '<svg viewBox="0 0 11 11" width="78" height="78" fill="currentColor">' +
-    g.join("") +
-    "</svg>"
-  );
-}
-function map() {
-  var h =
-    '<svg viewBox="0 0 360 230" preserveAspectRatio="xMidYMid slice"><rect width="360" height="230" style="fill:var(--map)"/><path d="M0,120 C45,140 25,200 70,230 L0,230Z" style="fill:var(--sea)"/>';
-  [
-    [0, 40, 360, 70],
-    [60, 0, 180, 230],
-    [0, 150, 360, 120],
-    [250, 0, 300, 230],
-  ].forEach(function (r) {
-    h +=
-      '<line x1="' +
-      r[0] +
-      '" y1="' +
-      r[1] +
-      '" x2="' +
-      r[2] +
-      '" y2="' +
-      r[3] +
-      '" stroke-width="7" style="stroke:var(--road)"/>';
-  });
-  L.forEach(function (l) {
-    var pts = l.s
-      .map(function (s) {
-        return POS[s].join(",");
+    ${trouvees
+      .map((l) => {
+        const nb = Math.abs(
+          l.arrets.indexOf(depart) - l.arrets.indexOf(arrivee),
+        );
+        return `
+        <div class="carte choix resultat" data-i="${reseau.indexOf(l)}">
+          <div class="ligne"><span>${l.nom}</span><span class="statut ${l.statut}">${l.statut === "fluide" ? "Fluide" : "Perturbé"}</span></div>
+          <p class="gris">${nb * 8} min · prochain départ dans ${l.attente} min</p>
+          <p class="prix-ligne">${fcfa(l.prix)}</p>
+        </div>`;
       })
-      .join(" ");
-    h +=
-      '<polyline points="' +
-      pts +
-      '" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><polyline points="' +
-      pts +
-      '" fill="none" stroke="' +
-      l.c +
-      '" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>';
-  });
-  ST.forEach(function (s) {
-    var p = POS[s];
-    h +=
-      '<circle cx="' +
-      p[0] +
-      '" cy="' +
-      p[1] +
-      '" r="5" fill="#fff" stroke="#24352b" stroke-width="2"/><text x="' +
-      (p[0] + (p[0] > 280 ? -8 : 8)) +
-      '" y="' +
-      (p[1] + 16) +
-      '" font-size="9" font-weight="700" text-anchor="' +
-      (p[0] > 280 ? "end" : "start") +
-      '" style="fill:var(--tx)">' +
-      s +
-      "</text>";
-  });
-  L.forEach(function (l, i) {
-    var d =
-      "M" +
-      l.s
-        .map(function (s) {
-          return POS[s].join(",");
-        })
-        .join(" L");
-    h +=
-      '<circle r="6" fill="' +
-      l.c +
-      '" stroke="#fff" stroke-width="2.5"><animateMotion dur="' +
-      (16 + i * 5) +
-      's" repeatCount="indefinite" path="' +
-      d +
-      '"/></circle>';
-  });
-  return h + "</svg>";
-}
-function planner() {
-  return (
-    '<div class="card sc"><div class="pl"><span class="d"></span><select data-k="from">' +
-    opts(ST, S.from) +
-    '</select><span></span><span class="ln"></span><span></span><button class="btn sw" data-a="swap" style="justify-self:end;grid-row:2/4;grid-column:3">⇅</button><span class="d e"></span><select data-k="to">' +
-    opts(ST, S.to) +
-    '</select></div><button class="btn p" style="margin-top:12px" data-a="search">Voir les bus</button></div>'
-  );
-}
-function price(b) {
-  return b.ty == "u"
-    ? LN(b.ln).p
-    : b.ty == "s"
-      ? Math.round((LN(b.ln).p * 0.7) / 50) * 50
-      : b.ty == "w"
-        ? 3000
-        : 10000;
-}
-function seg(l, a, b) {
-  var ia = l.s.indexOf(a),
-    ib = l.s.indexOf(b),
-    dir = ib > ia ? 1 : -1,
-    n = Math.abs(ib - ia),
-    o = dir > 0 ? ia : l.s.length - 1 - ia,
-    mid = l.s.slice(Math.min(ia, ib), Math.max(ia, ib) + 1);
-  if (dir < 0) mid.reverse();
-  return { l: l, n: n, d: deps(l, o, 3), mid: mid };
-}
-function transfer(a, b) {
-  var best = null;
-  L.forEach(function (l1) {
-    if (l1.s.indexOf(a) < 0) return;
-    L.forEach(function (l2) {
-      if (l2 == l1 || l2.s.indexOf(b) < 0) return;
-      l1.s.forEach(function (h) {
-        if (h == a || h == b || l2.s.indexOf(h) < 0) return;
-        var x = seg(l1, a, h),
-          y = seg(l2, h, b),
-          t = x.n + y.n;
-        if (!best || t < best.t) best = { x: x, y: y, h: h, t: t };
-      });
+      .join("")}
+  `;
+  document
+    .getElementById("retourResultats")
+    .addEventListener("click", ouvrirRecherche);
+  document.querySelectorAll(".resultat").forEach((c) => {
+    c.addEventListener("click", () => {
+      achat.ligne = reseau[Number(c.dataset.i)];
+      ouvrirPaiement();
     });
   });
-  return best;
 }
-function transferCard(r) {
-  var d0 = r.x.d[0],
-    tot = r.t * 4 + 6;
-  return (
-    '<div class="card"><div class="row"><div>' +
-    lb(r.x.l) +
-    "→ " +
-    lb(r.y.l) +
-    '</div><span class="badge" style="background:var(--g);color:#fff">CORRESPONDANCE</span></div><div class="row" style="margin:12px 0 4px"><div><div class="big">' +
-    tot +
-    ' min</div><div class="mu">via ' +
-    r.h +
-    " · " +
-    (r.x.l.p + r.y.l.p) +
-    " FCFA</div></div>" +
-    (d0
-      ? '<div style="text-align:right"><span class="live">' +
-        rel(d0) +
-        '</span><div class="mu" style="margin-top:4px">' +
-        fm(d0) +
-        " → " +
-        fm(d0 + tot) +
-        "</div></div>"
-      : "") +
-    "</div>" +
-    [r.x, r.y]
-      .map(function (s, i) {
-        return (
-          '<div class="tl" style="--c:' +
-          s.l.c +
-          '"><div><b>' +
-          s.l.id +
-          " · " +
-          s.l.n +
-          "</b></div>" +
-          s.mid
-            .map(function (m) {
-              return "<div>" + m + "</div>";
-            })
-            .join("") +
-          "</div>" +
-          (i == 0
-            ? '<div class="mu" style="margin:8px 0 0 4px">🔁 Changement à ' +
-              r.h +
-              " (environ 6 min d'attente)</div>"
-            : "")
-        );
-      })
-      .join("") +
-    '<button class="btn p" style="margin-top:14px" data-a="buy" data-l="' +
-    r.x.l.id +
-    '">🎫 Acheter les billets</button></div>'
-  );
-}
-var V = {
-  home: function () {
-    var a = [
-      [
-        "#d97706",
-        "⚠️",
-        "L1",
-        "Trafic ralenti à Mont-Bouët (travaux), prévoir +10 min",
-      ],
-      [
-        "#1d6fd8",
-        "ℹ️",
-        "L2",
-        "Passages renforcés pour la rentrée universitaire",
-      ],
-      ["#0b7d4b", "✅", "L3", "Circulation normale"],
-    ];
-    return (
-      '<div class="top"><h1>Bonjour 👋<br>Où allez-vous ?</h1><span class="badge">PROTOTYPE<br>DONNÉES FICTIVES</span></div><div class="mapc">' +
-      map() +
-      "</div>" +
-      planner() +
-      '<div class="chips"><button class="chip" data-a="quick" data-f="Owendo" data-t="Akanda">🏠 Owendo → Akanda</button><button class="chip" data-a="quick" data-f="Aéroport" data-t="Université">🎓 Aéroport → Université</button><button class="chip" data-a="quick" data-f="PK8" data-t="Glass">💼 PK8 → Glass</button></div>' +
-      '<div class="card"><h2>Prochains passages · Glass</h2>' +
-      L.map(function (l) {
-        var i = l.s.indexOf("Glass"),
-          d = deps(l, i, 1)[0];
-        return (
-          '<div class="dp">' +
-          lb(l) +
-          '<div class="grow"><b>' +
-          l.n +
-          '</b><div class="mu">Toutes les ' +
-          l.f +
-          " min</div></div>" +
-          (d
-            ? '<span class="live">' + rel(d) + "</span>"
-            : '<span class="mu">Terminé</span>') +
-          "</div>"
-        );
-      }).join("") +
-      "</div>" +
-      '<div class="card"><h2>Infos trafic</h2>' +
-      a
-        .slice()
-        .sort(function (p, q) {
-          return (S.fav.indexOf(q[2]) >= 0) - (S.fav.indexOf(p[2]) >= 0);
-        })
-        .map(function (x) {
-          return (
-            '<div class="al" style="--c:' +
-            x[0] +
-            ";background:color-mix(in srgb," +
-            x[0] +
-            ' 10%,transparent)"><span>' +
-            x[1] +
-            "</span><div>" +
-            (S.fav.indexOf(x[2]) >= 0 ? "⭐ " : "") +
-            lb(LN(x[2])) +
-            x[3] +
-            "</div></div>"
-          );
-        })
-        .join("") +
-      "</div>"
+
+function ouvrirPaiement() {
+  const l = achat.ligne;
+  document.getElementById("app").innerHTML = `
+    <button class="retour" type="button" id="retourPaiement">← Retour</button>
+    <h1>Paiement</h1>
+    <div class="carte">
+      <div class="ligne"><span>${achat.depart} → ${achat.arrivee}</span></div>
+      <p class="gris">${l.resume || `${l.nom} · prochain départ dans ${l.attente} min`}</p>
+      <div class="ligne total"><span>Total</span><span>${fcfa(l.prix)}</span></div>
+    </div>
+    <h2>Mobile Money</h2>
+    <div class="operateurs">
+      <div class="carte choix op ${achat.operateur === "Airtel Money" ? "actif" : ""}" data-op="Airtel Money">Airtel Money</div>
+      <div class="carte choix op ${achat.operateur === "Moov Money" ? "actif" : ""}" data-op="Moov Money">Moov Money</div>
+    </div>
+    <input class="champ" id="achatTel" placeholder="Numéro Mobile Money" inputmode="tel">
+    <p class="erreur" id="erreurPaiement"></p>
+    <button class="bouton plein" id="btnPayer" type="button">Payer ${fcfa(l.prix)}</button>
+  `;
+  document
+    .getElementById("retourPaiement")
+    .addEventListener("click", () =>
+      afficherResultats(achat.depart, achat.arrivee),
     );
-  },
-  trajet: function () {
-    var h =
-      '<div class="top"><h1>Planifier<br>un trajet</h1></div>' + planner();
-    if (S.go) {
-      var r = routes(S.from, S.to);
-      if (S.from == S.to)
-        h += '<div class="card mu">Choisis deux arrêts différents.</div>';
-      else if (!r.length) {
-        var tr = transfer(S.from, S.to);
-        h += tr
-          ? transferCard(tr)
-          : '<div class="card"><h2>🚧 Aucun itinéraire</h2><div class="mu">Aucune ligne ne relie ces deux arrêts dans ce réseau fictif.</div></div>';
-      }
-      r.forEach(function (x, i) {
-        var d0 = x.d[0];
-        h +=
-          '<div class="card" style="--c:' +
-          x.l.c +
-          '"><div class="row"><div>' +
-          lb(x.l) +
-          "<b>" +
-          x.l.n +
-          "</b></div>" +
-          (i == 0
-            ? '<span class="badge" style="background:var(--g);color:#fff">LE PLUS RAPIDE</span>'
-            : "") +
-          "</div>" +
-          '<div class="row" style="margin:12px 0 4px"><div><div class="big">' +
-          x.n * 4 +
-          ' min</div><div class="mu">' +
-          x.n +
-          " arrêt(s) · " +
-          x.l.p +
-          " FCFA</div></div>" +
-          (d0
-            ? '<div style="text-align:right"><span class="live">' +
-              rel(d0) +
-              '</span><div class="mu" style="margin-top:4px">' +
-              fm(d0) +
-              " → " +
-              fm(d0 + x.n * 4) +
-              "</div></div>"
-            : '<span class="mu">Service terminé</span>') +
-          "</div>" +
-          (x.d.length
-            ? "<div>" +
-              x.d
-                .map(function (t) {
-                  return '<span class="dep">' + fm(t) + "</span>";
-                })
-                .join("") +
-              "</div>"
-            : "") +
-          '<div class="tl">' +
-          x.mid
-            .map(function (s) {
-              return "<div>" + s + "</div>";
-            })
-            .join("") +
-          '</div><button class="btn p" style="margin-top:14px" data-a="buy" data-l="' +
-          x.l.id +
-          '">🎫 Acheter un billet</button></div>';
-      });
-    }
-    return h;
-  },
-  lignes: function () {
-    return (
-      '<div class="top"><h1>Toutes<br>les lignes</h1></div>' +
-      L.map(function (l) {
-        return (
-          '<div class="card" style="--c:' +
-          l.c +
-          '"><div class="row"><div>' +
-          lb(l) +
-          "<b>" +
-          l.n +
-          "</b></div><b>" +
-          l.p +
-          ' FCFA</b></div><div class="mu">Toutes les ' +
-          l.f +
-          ' min · 05:30 – 21:00</div><button class="chip" style="margin-top:8px;box-shadow:none;background:var(--in)" data-a="fav" data-l="' +
-          l.id +
-          '">' +
-          (S.fav.indexOf(l.id) >= 0
-            ? "🔔 Ligne suivie"
-            : "🔕 Suivre cette ligne") +
-          '</button><div class="tl">' +
-          l.s
-            .map(function (s) {
-              return "<div>" + s + "</div>";
-            })
-            .join("") +
-          "</div></div>"
-        );
-      }).join("")
-    );
-  },
-  billets: function () {
-    var b = S.buy,
-      pr = price(b),
-      o = function (v, t) {
-        return (
-          '<option value="' +
-          v +
-          '"' +
-          (b.ty == v ? " selected" : "") +
-          ">" +
-          t +
-          "</option>"
-        );
-      };
-    var h =
-      '<div class="top"><h1>Mes<br>billets</h1></div><div class="card"><h2>Acheter</h2><div class="row"><select data-k="ty">' +
-      o("u", "Ticket 1 trajet") +
-      o("s", "Ticket étudiant −30 %") +
-      o("w", "Pass semaine") +
-      o("m", "Pass mensuel") +
-      "</select>" +
-      (b.ty == "u" || b.ty == "s"
-        ? '<select data-k="ln">' + opts(L, b.ln) + "</select>"
-        : "") +
-      "</div>" +
-      '<div class="mu" style="margin-top:12px">Payer avec (simulation)</div><div class="ops">' +
-      [
-        ["Airtel Money", "#e5252a"],
-        ["Moov Money", "#1d6fd8"],
-        ["Mobicash", "#f28c00"],
-      ]
-        .map(function (x) {
-          return (
-            '<button class="op ' +
-            (b.op == x[0] ? "on" : "") +
-            '" style="--c:' +
-            x[1] +
-            '" data-a="op" data-o="' +
-            x[0] +
-            '"><i></i>' +
-            x[0] +
-            "</button>"
-          );
-        })
-        .join("") +
-      "</div>" +
-      '<input data-k="ph" inputmode="tel" placeholder="📱 Numéro mobile money" value="' +
-      b.ph +
-      '"><button class="btn p" style="margin-top:12px" data-a="pay">Payer ' +
-      pr.toLocaleString("fr-FR") +
-      ' FCFA</button><div class="mu" style="margin-top:8px;text-align:center">Aucun vrai paiement n\'est effectué.</div></div>';
-    h +=
-      '<div class="card"><h2>Portefeuille</h2>' +
-      (S.tk.length
-        ? S.tk
-            .map(function (t) {
-              return (
-                '<div class="wt"><div class="qb">' +
-                qr(t.c) +
-                '</div><div><b style="font-size:17px">' +
-                t.n +
-                '</b><div style="opacity:.85;font-size:13px">' +
-                t.c +
-                '</div><div style="opacity:.85;font-size:13px">Valide jusqu\'à ' +
-                t.v +
-                "</div></div></div>"
-              );
-            })
-            .join("") +
-          '<div class="mu" style="margin-top:10px">QR fictif : simple illustration.</div>'
-        : '<div class="mu">Aucun billet pour le moment.</div>') +
-      "</div>";
-    return h;
-  },
-  cnt: function () {
-    var c = S.stats.signalementsParLigne || {},
-      base = { L1: 5200, L2: 3100, L3: 4180 },
-      hr = [2, 6, 9, 7, 4, 3, 4, 5, 6, 8, 9, 5, 3],
-      top = "";
-    L.forEach(function (l) {
-      if ((c[l.id] || 0) > (c[top] || 0)) top = l.id;
+  document.querySelectorAll(".op").forEach((o) => {
+    o.addEventListener("click", () => {
+      achat.operateur = o.dataset.op;
+      document
+        .querySelectorAll(".op")
+        .forEach((x) => x.classList.remove("actif"));
+      o.classList.add("actif");
     });
-    var K = function (v, l, col) {
-      return (
-        '<div style="background:var(--in);border-radius:14px;padding:12px"><div class="mu">' +
-        l +
-        '</div><div class="big" style="font-size:22px;margin-top:4px;color:' +
-        (col || "var(--tx)") +
-        '">' +
-        v +
-        "</div></div>"
-      );
-    };
-    return (
-      '<div class="top"><h1>Espace<br>CNT</h1><span class="badge">DÉMO · FICTIF</span></div><div class="card"><div class="mu" style="margin-bottom:10px">Vue réservée au personnel de la CNT. La fréquentation et les heures de pointe restent inventées ; les billets vendus et les signalements viennent du serveur.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-      K(
-        (12480 + S.stats.totalBillets).toLocaleString("fr-FR"),
-        "Voyages aujourd'hui",
-      ) +
-      K(S.stats.totalBillets, "Billets vendus (serveur)", "var(--g)") +
-      K("5,4 M", "Recettes (FCFA)") +
-      K(S.stats.totalSignalements, "Signalements (serveur)", "var(--g)") +
-      "</div></div>" +
-      '<div class="card"><h2>Fréquentation par ligne</h2>' +
-      L.map(function (l) {
-        return (
-          '<div style="margin:8px 0"><div class="row"><span>' +
-          lb(l) +
-          l.n +
-          "</span><b>" +
-          base[l.id].toLocaleString("fr-FR") +
-          '</b></div><div style="height:9px;background:var(--in);border-radius:6px;margin-top:4px"><div style="height:100%;width:' +
-          base[l.id] / 52 +
-          "%;background:" +
-          l.c +
-          ';border-radius:6px"></div></div></div>'
-        );
-      }).join("") +
-      "</div>" +
-      '<div class="card"><h2>Heures de pointe</h2><div style="display:flex;align-items:flex-end;gap:4px;height:90px">' +
-      hr
-        .map(function (v) {
-          return (
-            '<div style="flex:1;height:' +
-            (v / 9) * 100 +
-            '%;background:linear-gradient(#1d6fd8,#0b7d4b);border-radius:5px 5px 0 0"></div>'
-          );
-        })
-        .join("") +
-      '</div><div class="row mu" style="margin-top:4px"><span>6h</span><span>9h</span><span>12h</span><span>15h</span><span>18h</span></div></div>' +
-      '<div class="card"><h2>Signalements par ligne</h2>' +
-      L.map(function (l) {
-        return (
-          '<div class="dp">' +
-          lb(l) +
-          '<div class="grow">' +
-          l.n +
-          "</div><b>" +
-          (c[l.id] || 0) +
-          "</b></div>"
-        );
-      }).join("") +
-      (top
-        ? '<div class="al" style="--c:#d97706;background:color-mix(in srgb,#d97706 10%,transparent);margin:10px 0 0"><span>⚠️</span><div>' +
-          top +
-          " est la ligne la plus signalée : à examiner en priorité.</div></div>"
-        : "") +
-      "</div>"
-    );
-  },
-  signaler: function () {
-    var f = S.rf,
-      T = [
-        ["Retard", "⏱️"],
-        ["Bus bondé", "👥"],
-        ["Incident", "🚨"],
-        ["Propreté", "🧹"],
-        ["Sécurité", "🛡️"],
-        ["Autre", "💬"],
-      ];
-    return (
-      '<div class="top"><h1>Signaler<br>un problème</h1></div><div class="card"><div class="tiles">' +
-      T.map(function (t) {
-        return (
-          '<button class="tile ' +
-          (f.t == t[0] ? "on" : "") +
-          '" data-a="rt" data-t="' +
-          t[0] +
-          '"><b>' +
-          t[1] +
-          "</b>" +
-          t[0] +
-          "</button>"
-        );
-      }).join("") +
-      '</div><select data-k="rl">' +
-      opts(L, f.l) +
-      '</select><textarea data-k="rc" rows="3" style="margin-top:8px" placeholder="Décris la situation (optionnel)">' +
-      f.c +
-      '</textarea><button class="btn p" style="margin-top:12px" data-a="rep">Envoyer le signalement</button></div>' +
-      '<div class="card"><h2>Signalements récents</h2>' +
-      S.rp
-        .map(function (r) {
-          return (
-            '<div class="dp">' +
-            lb(LN(r.l)) +
-            '<div class="grow"><b>' +
-            r.t +
-            "</b><div>" +
-            (r.c || "") +
-            '</div><div class="mu">' +
-            r.w +
-            "</div></div></div>"
-          );
-        })
-        .join("") +
-      "</div>"
-    );
-  },
-};
-function render() {
-  $("app").innerHTML = V[S.v]();
-  $("nav").innerHTML = [
-    ["home", "🏠", "Accueil"],
-    ["trajet", "🧭", "Trajet"],
-    ["lignes", "🗺️", "Lignes"],
-    ["billets", "🎫", "Billets"],
-    ["signaler", "📣", "Signaler"],
-    ["cnt", "📊", "CNT"],
-  ]
-    .map(function (x) {
-      return (
-        '<button class="' +
-        (S.v == x[0] ? "on" : "") +
-        '" data-a="nav" data-v="' +
-        x[0] +
-        '"><b>' +
-        x[1] +
-        "</b>" +
-        x[2] +
-        "</button>"
-      );
-    })
-    .join("");
-  var o = $("ov");
-  o.hidden = !S.buy.st;
-  o.style.display = S.buy.st ? "grid" : "none";
-  o.innerHTML =
-    '<div><div class="spin"></div>Validation sur ton téléphone…<br><span style="font-weight:400;opacity:.8">(simulation)</span></div>';
-}
-document.addEventListener("input", function (e) {
-  var k = e.target.dataset.k;
-  if (!k) return;
-  var v = e.target.value;
-  if (k == "from" || k == "to") S[k] = v;
-  else if (k == "ty" || k == "ln" || k == "ph") S.buy[k] = v;
-  else if (k == "rl") S.rf.l = v;
-  else if (k == "rc") S.rf.c = v;
-  if (k == "ty" || k == "ln") render();
-});
-document.addEventListener("click", function (e) {
-  var b = e.target.closest("[data-a]");
-  if (!b) return;
-  var d = b.dataset,
-    a = d.a,
-    nav = 0;
-  if (a == "nav") {
-    S.v = d.v;
-    nav = 1;
-  } else if (a == "search") {
-    S.v = "trajet";
-    S.go = 1;
-    nav = 1;
-  } else if (a == "quick") {
-    S.from = d.f;
-    S.to = d.t;
-    S.v = "trajet";
-    S.go = 1;
-    nav = 1;
-  } else if (a == "swap") {
-    var t = S.from;
-    S.from = S.to;
-    S.to = t;
-  } else if (a == "buy") {
-    S.v = "billets";
-    S.buy.ty = "u";
-    S.buy.ln = d.l;
-    nav = 1;
-  } else if (a == "op") {
-    S.buy.op = d.o;
-  } else if (a == "rt") {
-    S.rf.t = d.t;
-  } else if (a == "pay") {
-    if (S.buy.st) return;
-    if (S.buy.ph.replace(/\D/g, "").length < 8) {
-      toast("Entre un numéro valide (8 chiffres ou plus)");
+  });
+  document.getElementById("btnPayer").addEventListener("click", () => {
+    const tel = document.getElementById("achatTel").value.replace(/\D/g, "");
+    if (tel.length < 8) {
+      document.getElementById("erreurPaiement").textContent =
+        "Entrez un numéro valide.";
       return;
     }
-    S.buy.st = 1;
-    render();
-    var ty = S.buy.ty,
-      c = "CNT-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
-      dt = new Date();
-    dt.setDate(dt.getDate() + (ty == "w" ? 7 : 30));
-    var billet = {
-      code: c,
-      type: ty,
-      ligne: S.buy.ln,
-      operateur: S.buy.op,
-      nom:
-        ty == "u"
-          ? "Ticket " + S.buy.ln
-          : ty == "s"
-            ? "Ticket étudiant " + S.buy.ln
-            : ty == "w"
-              ? "Pass semaine"
-              : "Pass mensuel",
-      validite:
-        ty == "u" || ty == "s"
-          ? "ce soir 23:59"
-          : dt.toLocaleDateString("fr-FR"),
-    };
-    setTimeout(function () {
-      apiPost("/api/billets", billet)
-        .then(function (saved) {
-          S.tk.unshift({ c: saved.code, n: saved.nom, v: saved.validite });
-          S.buy.st = 0;
-          render();
-          toast("✅ Paiement simulé réussi, billet ajouté");
-        })
-        .catch(function () {
-          S.buy.st = 0;
-          render();
-          toast("⚠️ Le serveur ne répond pas, billet non enregistré");
-        });
-    }, 1200);
-    return;
-  } else if (a == "fav") {
-    var fi = S.fav.indexOf(d.l);
-    if (fi < 0) {
-      S.fav.push(d.l);
-      toast("🔔 Alertes activées pour " + d.l + " (démo)");
-    } else S.fav.splice(fi, 1);
-  } else if (a == "rep") {
-    var sig = { type: S.rf.t, ligne: S.rf.l, commentaire: S.rf.c };
-    apiPost("/api/signalements", sig)
-      .then(function () {
-        return apiGet("/api/signalements");
-      })
-      .then(function (list) {
-        S.rp = list.map(function (x) {
-          return {
-            t: x.type,
-            l: x.ligne,
-            c: x.commentaire,
-            w: new Date(x.date).toLocaleTimeString("fr-FR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          };
-        });
-        S.rf.c = "";
-        render();
-        toast("Merci, signalement envoyé");
-      })
-      .catch(function () {
-        toast("⚠️ Le serveur ne répond pas");
-      });
-    return;
-  }
-  render();
-  if (nav) window.scrollTo(0, 0);
-});
-render();
-Promise.all([
-  apiGet("/api/billets"),
-  apiGet("/api/signalements"),
-  apiGet("/api/stats"),
-])
-  .then(function (r) {
-    S.tk = r[0].map(function (x) {
-      return { c: x.code, n: x.nom, v: x.validite };
-    });
-    S.rp = r[1].map(function (x) {
-      return {
-        t: x.type,
-        l: x.ligne,
-        c: x.commentaire,
-        w: new Date(x.date).toLocaleTimeString("fr-FR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
-    });
-    S.stats = r[2];
-    render();
-  })
-  .catch(function () {
-    toast('⚠️ Serveur injoignable : lance "npm start" dans le terminal');
+    traiterPaiement();
   });
-var sp = $("sp"),
-  hide = function () {
-    sp.style.opacity = 0;
-    setTimeout(function () {
-      sp.remove();
-    }, 500);
-  };
-sp.onclick = hide;
-setTimeout(hide, 1200);
+}
+
+function traiterPaiement() {
+  const l = achat.ligne;
+  document.getElementById("app").innerHTML = `
+    <div class="attente">
+      <div class="skeleton gros"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton court"></div>
+      <p class="gris">Confirmation du paiement ${achat.operateur}…</p>
+    </div>
+  `;
+  setTimeout(() => {
+    const id = "CNT-" + String(mesBillets.length + 1).padStart(4, "0");
+    mesBillets.unshift({
+      id,
+      trajet: `${achat.depart} → ${achat.arrivee}`,
+      ligne: l.nom,
+      prix: fcfa(l.prix),
+      date: l.dateVoyage || new Date().toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+      statut: "actif",
+    });
+    achat = { depart: "", arrivee: "", ligne: null, operateur: "Airtel Money" };
+    ouvrirBillet(id);
+  }, 2500);
+}
+document.querySelectorAll(".nav-item").forEach((btn) => {
+  btn.addEventListener("click", () => afficherPage(btn.dataset.v));
+});
+
+afficherPage("home");
+function lireFavoris() {
+  try {
+    const s = JSON.parse(localStorage.getItem("cnt-favoris"));
+    if (Array.isArray(s)) return s;
+  } catch (e) {}
+  return ["Ligne 1", "Ligne 3"];
+}
+function ecrireFavoris(liste) {
+  try {
+    localStorage.setItem("cnt-favoris", JSON.stringify(liste));
+  } catch (e) {}
+}
+function estFavori(nom) {
+  return lireFavoris().includes(nom);
+}
+function basculerFavori(nom) {
+  const f = lireFavoris();
+  ecrireFavoris(f.includes(nom) ? f.filter((n) => n !== nom) : [...f, nom]);
+}
+function couleurLigne(nom) {
+  return (
+    { "Ligne 1": "#0b7d4b", "Ligne 2": "#eab308", "Ligne 3": "#2563eb" }[nom] ||
+    "#0b7d4b"
+  );
+}
+function frequenceLigne(nom) {
+  return { "Ligne 1": 20, "Ligne 2": 15, "Ligne 3": 10 }[nom] || 20;
+}
+function etoile(plein) {
+  return `<svg viewBox="0 0 24 24" width="24" height="24" fill="${plein ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+}
+function formatHeure(min) {
+  const h = String(Math.floor(min / 60) % 24).padStart(2, "0");
+  const m = String(min % 60).padStart(2, "0");
+  return `${h}:${m}`;
+}
+function prochainsDeparts(nom) {
+  const freq = frequenceLigne(nom);
+  const maintenant = new Date().getHours() * 60 + new Date().getMinutes();
+  const liste = [];
+  for (let t = 330; t <= 1260; t += freq) {
+    if (t >= maintenant) liste.push(t);
+    if (liste.length === 4) break;
+  }
+  return liste;
+}
+function badgeStatut(l) {
+  return `<span class="statut ${l.statut}">${l.statut === "fluide" ? "Fluide" : "Perturbé"}</span>`;
+}
+
+function afficherFavoris() {
+  const conteneur = document.getElementById("homeFavoris");
+  if (!conteneur) return;
+  const liste = reseau.filter((l) => estFavori(l.nom));
+  conteneur.innerHTML = liste.length
+    ? liste
+        .map(
+          (l) => `
+      <div class="carte ligne" data-i="${reseau.indexOf(l)}"><span>${l.nom}</span>${badgeStatut(l)}</div>`,
+        )
+        .join("")
+    : "<p class=\"gris\">Aucun favori. Touchez l'étoile d'une ligne pour l'ajouter.</p>";
+  conteneur.querySelectorAll(".ligne").forEach((c) => {
+    c.addEventListener("click", () => ouvrirLigne(Number(c.dataset.i)));
+  });
+}
+
+function initLignes() {
+  document.getElementById("listeLignes").innerHTML = reseau
+    .map(
+      (l, i) => `
+    <div class="carte ligne-carte" data-i="${i}">
+      <span class="pastille" style="background:${couleurLigne(l.nom)}"></span>
+      <div class="ligne-infos">
+        <strong>${l.nom}</strong>
+        <p class="gris">${l.arrets[0]} ↔️ ${l.arrets[l.arrets.length - 1]}</p>
+      </div>
+      ${badgeStatut(l)}
+      <button class="etoile ${estFavori(l.nom) ? "actif" : ""}" data-nom="${l.nom}" type="button" aria-label="Favori">${etoile(estFavori(l.nom))}</button>
+    </div>
+  `,
+    )
+    .join("");
+  document.querySelectorAll(".ligne-carte").forEach((c) => {
+    c.addEventListener("click", () => ouvrirLigne(Number(c.dataset.i)));
+  });
+  document.querySelectorAll(".etoile").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      basculerFavori(b.dataset.nom);
+      initLignes();
+    });
+  });
+}
+
+function ouvrirLigne(i) {
+  const l = reseau[i];
+  const couleur = couleurLigne(l.nom);
+  const departs = prochainsDeparts(l.nom);
+  document.getElementById("app").innerHTML = `
+    <button class="retour" type="button" id="retourLignes">← Retour</button>
+    <div class="ligne-entete">
+      <span class="pastille grande" style="background:${couleur}"></span>
+      <h1>${l.nom}</h1>
+      <button class="etoile ${estFavori(l.nom) ? "actif" : ""}" id="favoriLigne" type="button" aria-label="Favori">${etoile(estFavori(l.nom))}</button>
+    </div>
+    ${badgeStatut(l)}
+    <div class="carte infos-ligne">
+      <div><p class="ticket-label">Premier départ</p><p class="ticket-valeur">05:30</p></div>
+      <div><p class="ticket-label">Dernier départ</p><p class="ticket-valeur">21:00</p></div>
+      <div><p class="ticket-label">Fréquence</p><p class="ticket-valeur">${frequenceLigne(l.nom)} min</p></div>
+    </div>
+    <h2>Prochains départs</h2>
+    <div class="departs">${
+      departs.length
+        ? departs
+            .map((t) => `<span class="depart">${formatHeure(t)}</span>`)
+            .join("")
+        : '<p class="gris">Service terminé, reprise à 05:30.</p>'
+    }</div>
+    <h2>Arrêts</h2>
+    <div class="carte">
+      <ul class="arrets">
+        ${l.arrets.map((a, k) => `<li style="--c:${couleur}"><span class="arret-nom">${a}</span><span class="gris">+${k * 8} min</span></li>`).join("")}
+      </ul>
+    </div>
+    <button class="bouton plein" id="reserverLigne" type="button">Acheter un billet</button>
+  `;
+  document.getElementById("retourLignes").addEventListener("click", () => {
+    afficherPage(document.querySelector(".nav-item.active").dataset.v);
+  });
+  document.getElementById("favoriLigne").addEventListener("click", () => {
+    basculerFavori(l.nom);
+    ouvrirLigne(i);
+  });
+  document
+    .getElementById("reserverLigne")
+    .addEventListener("click", ouvrirRecherche);
+}
+const positionsArrets = {
+  "Aéroport Léon-Mba": [0.4586, 9.4123],
+  Akébé: [0.376, 9.462],
+  "Centre-ville": [0.3925, 9.453],
+  "Université Omar Bongo": [0.429, 9.499],
+};
+
+function initReseau() {
+  carte = L.map("carte-reseau", { zoomControl: false }).setView(
+    [0.405, 9.46],
+    12,
+  );
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "©️ OpenStreetMap",
+  }).addTo(carte);
+
+  const groupes = {};
+  reseau.forEach((l) => {
+    const couleur = couleurLigne(l.nom);
+    const groupe = L.layerGroup();
+    L.polyline(
+      l.arrets.map((a) => positionsArrets[a]),
+      { color: couleur, weight: 5, opacity: 0.9 },
+    ).addTo(groupe);
+    l.arrets.forEach((a) => {
+      const desservies = reseau
+        .filter((x) => x.arrets.includes(a))
+        .map((x) => x.nom)
+        .join(", ");
+      L.circleMarker(positionsArrets[a], {
+        radius: 8,
+        color: couleur,
+        weight: 3,
+        fillColor: "#fff",
+        fillOpacity: 1,
+      })
+        .addTo(groupe)
+        .bindPopup(`<strong>${a}</strong><br>${desservies}`);
+    });
+    groupe.addTo(carte);
+    groupes[l.nom] = groupe;
+  });
+
+  document.getElementById("legendeReseau").innerHTML = reseau
+    .map(
+      (l) => `
+    <button class="puce actif" data-nom="${l.nom}" type="button">
+      <span class="pastille" style="background:${couleurLigne(l.nom)}"></span>${l.nom}
+    </button>
+  `,
+    )
+    .join("");
+  document.querySelectorAll(".puce").forEach((p) => {
+    p.addEventListener("click", () => {
+      const g = groupes[p.dataset.nom];
+      if (carte.hasLayer(g)) {
+        carte.removeLayer(g);
+        p.classList.remove("actif");
+      } else {
+        g.addTo(carte);
+        p.classList.add("actif");
+      }
+    });
+  });
+
+  carte.fitBounds(L.latLngBounds(Object.values(positionsArrets)), {
+    padding: [24, 24],
+  });
+  setTimeout(() => {
+    if (carte) carte.invalidateSize();
+  }, 100);
+}
+function echapper(texte){
+  return String(texte).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function profilParDefaut(){
+  return { prenom: '', nom: '', telephone: '', email: '', justificatif: '', notifications: true, operateur: 'Airtel Money' };
+}
+function lireProfil(){
+  try {
+    const p = JSON.parse(localStorage.getItem('cnt-profil'));
+    if (p && typeof p === 'object') return Object.assign(profilParDefaut(), p);
+  } catch (e) {}
+  return profilParDefaut();
+}
+function ecrireProfil(p){
+  try { localStorage.setItem('cnt-profil', JSON.stringify(p)); } catch (e) {}
+}
+function nomUtilisateur(){
+  const p = lireProfil();
+  const complet = `${p.nom.toUpperCase()} ${p.prenom}`.trim();
+  return echapper(complet || utilisateur.nom);
+}
+
+function ouvrirProfil(sauve){
+  const p = lireProfil();
+  const initiales = ((p.prenom[0] || '') + (p.nom[0] || '')).toUpperCase() || '?';
+  document.getElementById('app').innerHTML = `
+    <button class="retour" type="button" id="retourProfil">← Retour</button>
+    <div class="profil-entete">
+      <div class="avatar">${echapper(initiales)}</div>
+      <div>
+        <h1>${nomUtilisateur()}</h1>
+        <span class="statut fluide">Étudiant</span>
+      </div>
+    </div>
+    ${sauve ? '<p class="succes">Profil enregistré.</p>' : ''}
+
+    <h2>Informations personnelles</h2>
+    <div class="carte">
+      <label class="etiquette">Prénom</label>
+      <input class="champ" id="pfPrenom" value="${echapper(p.prenom)}" placeholder="Prénom" autocomplete="given-name">
+      <label class="etiquette">Nom</label>
+      <input class="champ" id="pfNom" value="${echapper(p.nom)}" placeholder="Nom" autocomplete="family-name">
+      <label class="etiquette">Téléphone</label>
+      <input class="champ" id="pfTel" value="${echapper(p.telephone)}" placeholder="Numéro de téléphone" inputmode="tel">
+      <label class="etiquette">E-mail</label>
+      <input class="champ" id="pfEmail" type="email" value="${echapper(p.email)}" placeholder="adresse@exemple.com">
+    </div>
+
+    <h2>Justificatif étudiant</h2>
+    <div class="carte">
+      <div class="ligne"><span>Carte d'étudiant</span><span class="statut ${p.justificatif ? 'attente' : 'expire'}" id="pfStatutJust">${p.justificatif ? 'En attente' : 'Non fourni'}</span></div>
+      <p class="gris" id="pfNomFichier">${p.justificatif ? echapper(p.justificatif) : 'Ajoutez une photo de votre carte pour le tarif étudiant.'}</p>
+      <img id="pfApercu" class="apercu" alt="" hidden>
+      <input type="file" id="pfFichier" accept="image/*" hidden>
+      <button class="bouton secondaire" id="pfChoisir" type="button">Ajouter une photo</button>
+    </div>
+
+    <h2>Préférences</h2>
+    <div class="carte">
+      <div class="ligne"><span>Alertes de perturbations</span>
+        <label class="interrupteur"><input type="checkbox" id="pfNotifs" ${p.notifications ? 'checked' : ''}><span class="curseur"></span></label>
+      </div>
+      <p class="gris">Mobile Money par défaut</p>
+      <div class="segments">
+        <button class="segment ${p.operateur === 'Airtel Money' ? 'actif' : ''}" data-op="Airtel Money" type="button">Airtel Money</button>
+        <button class="segment ${p.operateur === 'Moov Money' ? 'actif' : ''}" data-op="Moov Money" type="button">Moov Money</button>
+      </div>
+    </div>
+
+    <p class="erreur" id="pfErreur"></p>
+    <button class="bouton plein" id="pfEnregistrer" type="button">Enregistrer</button>
+  `;
+
+  document.getElementById('retourProfil').addEventListener('click', () => {
+    afficherPage(document.querySelector('.nav-item.active').dataset.v);
+  });
+  document.getElementById('pfChoisir').addEventListener('click', () => {
+    document.getElementById('pfFichier').click();
+  });
+  document.getElementById('pfFichier').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const apercu = document.getElementById('pfApercu');
+    apercu.src = URL.createObjectURL(f);
+    apercu.hidden = false;
+    document.getElementById('pfNomFichier').textContent = f.name;
+    const s = document.getElementById('pfStatutJust');
+    s.textContent = 'En attente';
+    s.className = 'statut attente';
+    e.target.dataset.nom = f.name;
+  });
+  document.querySelectorAll('.segment').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.segment').forEach(x => x.classList.remove('actif'));
+      b.classList.add('actif');
+    });
+  });
+  document.getElementById('pfEnregistrer').addEventListener('click', () => {
+    const tel = document.getElementById('pfTel').value.trim();
+    if (tel && tel.replace(/\D/g, '').length < 8) {
+      document.getElementById('pfErreur').textContent = 'Numéro de téléphone invalide.';
+      return;
+    }
+    const op = document.querySelector('.segment.actif');
+    ecrireProfil({
+      prenom: document.getElementById('pfPrenom').value.trim(),
+      nom: document.getElementById('pfNom').value.trim(),
+      telephone: tel,
+      email: document.getElementById('pfEmail').value.trim(),
+      justificatif: document.getElementById('pfFichier').dataset.nom || lireProfil().justificatif,
+      notifications: document.getElementById('pfNotifs').checked,
+      operateur: op ? op.dataset.op : 'Airtel Money'
+    });
+    ouvrirProfil(true);
+  });
+}
+
+document.querySelectorAll('#optionsMenu button').forEach(b => {
+  b.addEventListener('click', () => {
+    const t = b.textContent.trim();
+    if (t === 'Mon profil') ouvrirProfil();
+    if (t === 'Mes favoris') document.querySelector('.nav-item[data-v="lignes"]').click();
+  });
+});
+function trajetsInter(){
+  // Données d'exemple : à remplacer par les vrais tarifs, durées et horaires de la CNT
+  return [
+    { ville: 'Lambaréné', prix: 6000, duree: 210, departs: ['06:30', '10:00', '15:00'] },
+    { ville: 'Mouila', prix: 12000, duree: 420, departs: ['06:00', '13:00'] },
+    { ville: 'Lebamba', prix: 14000, duree: 480, departs: ['06:00'] },
+    { ville: 'Tchibanga', prix: 17000, duree: 600, departs: ['05:30', '12:00'] },
+    { ville: 'Makokou', prix: 16000, duree: 570, departs: ['06:00'] },
+    { ville: 'Oyem', prix: 14000, duree: 420, departs: ['06:00', '13:00'] },
+    { ville: 'Bitam', prix: 16000, duree: 480, departs: ['06:00'] }
+  ];
+}
+
+function villesInter(){
+  return ['Libreville'].concat(trajetsInter().map(t => t.ville));
+}
+
+function estInter(d, a){
+  const v = villesInter();
+  return v.includes(d) && v.includes(a);
+}
+
+function dureeTexte(min){
+  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+}
+
+function hhmm(min){
+  return `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+function afficherResultatsInter(depart, arrivee, jour){
+  jour = jour || 0;
+  achat.depart = depart;
+  achat.arrivee = arrivee;
+  const ville = depart === 'Libreville' ? arrivee : depart;
+  const t = trajetsInter().find(x => x.ville === ville);
+  const direct = (depart === 'Libreville' || arrivee === 'Libreville') && t;
+
+  const dateVoyage = new Date();
+  dateVoyage.setDate(dateVoyage.getDate() + jour);
+  const libelle = dateVoyage.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const maintenant = new Date().getHours() * 60 + new Date().getMinutes();
+  const minutes = h => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
+  const departs = direct ? t.departs.filter(h => jour > 0 || minutes(h) > maintenant) : [];
+  const jours = ['Aujourd\'hui', 'Demain', 'Après-demain'];
+
+  document.getElementById('app').innerHTML = `
+    <button class="retour" type="button" id="retourInter">← Modifier</button>
+    <h1>${depart} → ${arrivee}</h1>
+    ${direct ? `
+      <div class="segments dates">
+        ${jours.map((j, i) => `<button class="segment ${i === jour ? 'actif' : ''}" data-j="${i}" type="button">${j}</button>`).join('')}
+      </div>
+      <p class="gris">${libelle} · ${dureeTexte(t.duree)} de route</p>
+      ${departs.length
+        ? departs.map(h => {
+            const places = 8 + ((h.charCodeAt(1) + h.charCodeAt(4) + jour * 7 + ville.length) % 28);
+            return `
+              <div class="carte choix depart-inter" data-h="${h}">
+                <div class="ligne"><span class="grosse-heure">${h}</span><span class="prix-ligne">${fcfa(t.prix)}</span></div>
+                <p class="gris">Arrivée vers ${hhmm(minutes(h) + t.duree)} · ${dureeTexte(t.duree)}</p>
+                <p class="gris">${places} places disponibles</p>
+              </div>`;
+          }).join('')
+        : '<div class="carte"><p>Plus de départ aujourd\'hui.</p><p class="gris">Choisissez un autre jour.</p></div>'}
+    ` : '<div class="carte"><p>Aucune liaison directe entre ces deux villes.</p><p class="gris">Les liaisons interurbaines partent de Libreville.</p></div>'}
+  `;
+
+  document.getElementById('retourInter').addEventListener('click', ouvrirRecherche);
+  document.querySelectorAll('.segment[data-j]').forEach(b => {
+    b.addEventListener('click', () => afficherResultatsInter(depart, arrivee, Number(b.dataset.j)));
+  });
+  document.querySelectorAll('.depart-inter').forEach(c => {
+    c.addEventListener('click', () => {
+      const h = c.dataset.h;
+      achat.ligne = {
+        nom: `CNT Interurbain · ${h}`,
+        prix: t.prix,
+        resume: `Départ le ${libelle} à ${h}`,
+        dateVoyage: libelle
+      };
+      ouvrirPaiement();
+    });
+  });
+}

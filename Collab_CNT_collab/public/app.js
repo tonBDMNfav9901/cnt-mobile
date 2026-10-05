@@ -1,4 +1,3 @@
-console.log("%cCNT Mobile — © 2026 NGUIAMBAMBA Judaxe Kevin\nPrototype développé pour JE-STRAT-UP / Université Numérique du Gabon\nToute reproduction sans autorisation est interdite.", "color:#0b7d4b;font-weight:bold;font-size:12px;");
 const navTrack = document.getElementById("navTrack");
 const navIndicator = document.getElementById("navIndicator");
 

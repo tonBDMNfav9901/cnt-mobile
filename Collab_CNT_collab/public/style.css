@@ -2470,7 +2470,6 @@ nav.bottom-nav {
 }
 .carte-reseau {
   width: 100% !important;
-  margin-top: 16px !important;
   height: calc(100dvh - 280px) !important;
   min-height: 320px !important;
 }
@@ -2532,6 +2531,7 @@ nav.bottom-nav {
     box-sizing: border-box !important;
   }
 
+  #app > .carte,
   #app > .operateurs,
   #app > .segments {
     display: grid !important;
@@ -2562,23 +2562,4 @@ nav.bottom-nav {
     max-width: none !important;
     box-sizing: border-box !important;
   }
-}
-/* La barre reste au-dessus du contenu qui défile */
-nav.bottom-nav {
-  z-index: 3000 !important;
-}
-
-/* Laisse le dernier contenu remonter au-dessus de la barre */
-#app {
-  padding-bottom: 110px !important;
-}
-/* Enferme les calques de Leaflet dans la carte */
-.leaflet-container {
-  isolation: isolate !important;
-}
-
-/* Bouton d'options et menu au-dessus de la carte, sous la barre du bas */
-#optionsBtn,
-#optionsMenu {
-  z-index: 2500 !important;
 }

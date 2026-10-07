@@ -1,4 +1,7 @@
-console.log("%cCNT Mobile — © 2026 NGUIAMBAMBA Judaxe Kevin\nPrototype développé pour JE-STRAT-UP / Université Numérique du Gabon\nToute reproduction sans autorisation est interdite.", "color:#0b7d4b;font-weight:bold;font-size:12px;");
+console.log(
+  "%cCNT Mobile — © 2026 NGUIAMBAMBA Judaxe Kevin\nPrototype développé pour JE-STRAT-UP / Université Numérique du Gabon\nToute reproduction sans autorisation est interdite.",
+  "color:#0b7d4b;font-weight:bold;font-size:12px;",
+);
 const navTrack = document.getElementById("navTrack");
 const navIndicator = document.getElementById("navIndicator");
 
@@ -150,11 +153,99 @@ function ouvrirNotifications() {
     .getElementById("retourNotifs")
     .addEventListener("click", ouvrirRecherche);
 }
+const CLE_FAVORIS = "cnt_favoris";
+
+function lireFavoris() {
+  try {
+    return JSON.parse(localStorage.getItem(CLE_FAVORIS)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function estFavori(id) {
+  return lireFavoris().some((f) => f.id === id);
+}
+
+function basculerFavori(ligne) {
+  if (typeof ligne === "string")
+    ligne = { id: ligne, ligne: ligne, trajet: "" };
+  const liste = lireFavoris();
+  const i = liste.findIndex((f) => f.id === ligne.id);
+  if (i >= 0) liste.splice(i, 1);
+  else liste.push(ligne);
+  localStorage.setItem(CLE_FAVORIS, JSON.stringify(liste));
+}
+
+function etoileFavori(l) {
+  const trajet = l.arrets
+    ? `${l.arrets[0]} → ${l.arrets[l.arrets.length - 1]}`
+    : "";
+  return `<button type="button" class="etoile-favori" data-id="${echapper(l.nom)}" data-ligne="${echapper(l.nom)}" data-trajet="${echapper(trajet)}" aria-label="Favori">${estFavori(l.nom) ? "★" : "☆"}</button>`;
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".etoile-favori");
+  if (!b) return;
+  basculerFavori({
+    id: b.dataset.id,
+    ligne: b.dataset.ligne,
+    trajet: b.dataset.trajet,
+  });
+  b.textContent = estFavori(b.dataset.id) ? "★" : "☆";
+});
+
+function ouvrirFavoris() {
+  const favoris = lireFavoris();
+  document.getElementById("app").innerHTML = `
+    <button class="retour" type="button" id="retourFavoris">← Retour</button>
+    <h1>Mes favoris</h1>
+    ${
+      favoris.length
+        ? favoris
+            .map(
+              (f) => `
+      <div class="carte">
+        <div class="ligne"><span>${echapper(f.ligne)}</span>
+          <button type="button" class="retirer-favori" data-id="${echapper(f.id)}" aria-label="Retirer des favoris">★</button>
+        </div>
+        <p class="gris">${echapper(f.trajet)}</p>
+      </div>`,
+            )
+            .join("")
+        : '<div class="carte"><p class="gris">Aucune ligne favorite pour l\'instant.</p></div>'
+    }
+      ${favoris.length ? '<p class="lien-discret" id="effacerFavoris">Tout effacer</p>' : ""}
+  `;
+  document
+    .getElementById("retourFavoris")
+    .addEventListener("click", ouvrirRecherche);
+  const effacer = document.getElementById("effacerFavoris");
+  if (effacer) {
+    effacer.addEventListener("click", () => {
+      console.log(
+        "clic sur Tout effacer",
+        CLE_FAVORIS,
+        localStorage.getItem(CLE_FAVORIS),
+      );
+      localStorage.removeItem(CLE_FAVORIS);
+      ouvrirFavoris();
+    });
+  }
+  document.querySelectorAll(".retirer-favori").forEach((b) =>
+    b.addEventListener("click", () => {
+      basculerFavori({ id: b.dataset.id });
+      ouvrirFavoris();
+    }),
+  );
+}
 
 document.querySelectorAll("#optionsMenu button").forEach((b) => {
   b.addEventListener("click", () => {
     optionsMenu.classList.remove("ouvert");
     if (b.dataset.action === "notifications") ouvrirNotifications();
+    if (b.dataset.action === "profil") ouvrirProfil();
+    if (b.dataset.action === "favoris") ouvrirFavoris();
   });
 });
 
@@ -586,25 +677,25 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
 });
 
 afficherPage("home");
-function lireFavoris() {
-  try {
-    const s = JSON.parse(localStorage.getItem("cnt-favoris"));
-    if (Array.isArray(s)) return s;
-  } catch (e) {}
-  return ["Ligne 1", "Ligne 3"];
-}
-function ecrireFavoris(liste) {
-  try {
-    localStorage.setItem("cnt-favoris", JSON.stringify(liste));
-  } catch (e) {}
-}
-function estFavori(nom) {
-  return lireFavoris().includes(nom);
-}
-function basculerFavori(nom) {
-  const f = lireFavoris();
-  ecrireFavoris(f.includes(nom) ? f.filter((n) => n !== nom) : [...f, nom]);
-}
+// function lireFavoris() {
+//   try {
+//     const s = JSON.parse(localStorage.getItem("cnt-favoris"));
+//     if (Array.isArray(s)) return s;
+//   } catch (e) {}
+//   return ["Ligne 1", "Ligne 3"];
+// }
+// function ecrireFavoris(liste) {
+//   try {
+//     localStorage.setItem("cnt-favoris", JSON.stringify(liste));
+//   } catch (e) {}
+// }
+// function estFavori(nom) {
+//   return lireFavoris().includes(nom);
+// }
+// function basculerFavori(nom) {
+//   const f = lireFavoris();
+//   ecrireFavoris(f.includes(nom) ? f.filter((n) => n !== nom) : [...f, nom]);
+// }
 function couleurLigne(nom) {
   return (
     { "Ligne 1": "#0b7d4b", "Ligne 2": "#eab308", "Ligne 3": "#2563eb" }[nom] ||
@@ -675,7 +766,11 @@ function initLignes() {
   document.querySelectorAll(".etoile").forEach((b) => {
     b.addEventListener("click", (e) => {
       e.stopPropagation();
-      basculerFavori(b.dataset.nom);
+      const l = reseau.find((x) => x.nom === b.dataset.nom);
+      const trajet = l.arrets
+        ? `${l.arrets[0]} ↔ ${l.arrets[l.arrets.length - 1]}`
+        : "";
+      basculerFavori({ id: l.nom, ligne: l.nom, trajet });
       initLignes();
     });
   });
@@ -718,9 +813,13 @@ function ouvrirLigne(i) {
     afficherPage(document.querySelector(".nav-item.active").dataset.v);
   });
   document.getElementById("favoriLigne").addEventListener("click", () => {
-    basculerFavori(l.nom);
+    const trajet = l.arrets
+      ? `${l.arrets[0]} → ${l.arrets[l.arrets.length - 1]}`
+      : "";
+    basculerFavori({ id: l.nom, ligne: l.nom, trajet });
     ouvrirLigne(i);
   });
+
   document
     .getElementById("reserverLigne")
     .addEventListener("click", ouvrirRecherche);

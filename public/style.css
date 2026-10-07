@@ -2582,3 +2582,22 @@ nav.bottom-nav {
 #optionsMenu {
   z-index: 2500 !important;
 }
+.lien-discret {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  margin-top: 16px;
+  cursor: pointer;
+}
+.lien-discret:hover {
+  text-decoration: underline;
+  color: #666;
+}
+#effacerFavoris {
+  position: relative;
+  z-index: 10;
+  display: block;
+  padding: 16px;
+  cursor: pointer;
+  margin-bottom: 140px;
+}
